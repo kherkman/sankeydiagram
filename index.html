@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Original Sankey Chart Creator</title>
+    <style>
+        /* Base styles */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f0f2f5; user-select: none; }
+        .sidebar { width: 420px; background: #ffffff; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow-y: auto; z-index: 10; }
+        .main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; position: relative; }
+        
+        /* Typography & Layout */
+        h2 { font-size: 13px; margin-top: 0; color: #444; text-transform: uppercase; letter-spacing: 0.5px; background: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #007bff; }
+        .section { border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+        .section:last-child { border-bottom: none; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 11px; margin-bottom: 4px; color: #666; font-weight: bold; }
+        .form-group input:not([type="checkbox"]), .form-group select, .form-group textarea { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 12px; font-family: inherit; }
+        .form-group input[type="color"] { padding: 0; height: 28px; cursor: pointer; }
+        .form-group input[type="file"] { padding: 4px; font-size: 11px; }
+        .form-group input[type="range"] { padding: 0; cursor: pointer; }
+        
+        /* Grids */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+        .flex-row { display: flex; align-items: center; gap: 8px; }
+        
+        /* Buttons */
+        .btn-row { display: flex; gap: 8px; margin-top: 5px; }
+        button { background-color: #007bff; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; font-size: 12px; transition: background 0.2s; }
+        button:hover { background-color: #0056b3; }
+        .btn-cancel { background-color: #6c757d; }
+        .btn-cancel:hover { background-color: #5a6268; }
+        .btn-secondary { background-color: #28a745; }
+        .btn-secondary:hover { background-color: #218838; }
+        .btn-clear { background-color: #ffc107; color: #333;}
+        .btn-clear:hover { background-color: #e0a800; }
+        .btn-primary { background-color: #17a2b8; }
+        .btn-primary:hover { background-color: #138496; }
+        .btn-small { padding: 4px 6px; font-size: 11px; width: auto; }
+        .btn-delete { background-color: #dc3545; }
+        .btn-delete:hover { background-color: #c82333; }
+        .btn-edit { background-color: #17a2b8; }
+        .btn-edit:hover { background-color: #138496; }
+        
+        /* Flow List */
+        .flow-list { max-height: 150px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; padding: 5px; background: #fafafa; }
+        .flow-item { background: #fff; padding: 6px; margin-bottom: 4px; border-radius: 4px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        .flow-item.editing { background: #e3f2fd; border-color: #90caf9; }
+        .flow-details { display: flex; align-items: center; gap: 8px; flex-grow: 1; }
+        .color-box { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #999; }
+        .action-btns { display: flex; gap: 4px; }
+        
+        /* Chart Area & Text Boxes */
+        #chart { flex-grow: 1; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); background-color: #ffffff; background-size: cover; background-position: center; background-repeat: no-repeat; position: relative; overflow: hidden; }
+        #chart-container { width: 100%; height: 100%; }
+        #text-box-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        
+        .draggable { cursor: move; }
+        .chart-text-box { position: absolute; padding: 8px 12px; white-space: pre-wrap; pointer-events: auto; border-radius: 4px; box-sizing: border-box; }
+        .chart-text-box.active-tb { box-shadow: 0 0 0 2px rgba(0,123,255,0.2), 0 4px 12px rgba(0,0,0,0.1); }
+        
+        /* Utilities */
+        .range-value { font-size: 11px; float: right; color: #007bff; font-weight: bold; }
+        .status-text { font-size: 10px; color: #28a745; font-weight: bold; margin-left: 5px; }
+        .hidden { display: none !important; }
+        .sub-panel { background: #f8f9fa; border: 1px solid #e9ecef; padding: 10px; border-radius: 4px; margin-top: 8px; }
+        .sub-title { font-size: 11px; font-weight: bold; color: #555; margin: 10px 0 5px 0; display: block; border-bottom: 1px dotted #ccc; padding-bottom: 3px; }
+    </style>
+    <!-- Dynamic custom fonts will be injected here -->
+    <style id="custom-fonts-style"></style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <!-- 1. FLOW MANAGEMENT -->
+        <div class="section">
+            <h2 id="form-title">1. Add/Edit Flow</h2>
+            <div class="grid-2">
+                <div class="form-group"><label>Source Node</label><input type="text" id="source" placeholder="Biomass"></div>
+                <div class="form-group"><label>Target Node</label><input type="text" id="target" placeholder="Food"></div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group"><label>Amount</label><input type="number" id="amount" placeholder="25" min="0.1" step="0.1"></div>
+                <div class="form-group"><label>Base Color</label><input type="color" id="color" value="#4CAF50"></div>
+            </div>
+            <div class="form-group">
+                <label>Custom Flow Background Image <span id="flow-img-status" class="status-text"></span></label>
+                <div class="flex-row">
+                    <input type="file" id="flow-img" accept="image/*" onchange="handleFlowImageUpload(event)">
+                    <button class="btn-clear btn-small" onclick="clearFlowImage()">Clear</button>
+                </div>
+            </div>
+            <div class="btn-row">
+                <button id="btn-submit" onclick="submitFlow()">Add Flow</button>
+                <button id="btn-cancel" class="btn-cancel hidden" onclick="cancelEdit()">Cancel</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. Current Flows</h2>
+            <div class="flow-list" id="flow-container"></div>
+        </div>
+
+        <!-- 3. TEXT BOXES (TITLES / COMMENTS) -->
+        <div class="section">
+            <h2>3. Canvas Text Boxes</h2>
+            <div class="btn-row" style="margin-bottom: 10px;">
+                <button onclick="addTextBox()">+ Create New Text Box</button>
+            </div>
+            
+            <div class="form-group">
+                <label>Select Text Box to Edit</label>
+                <select id="tb-select" onchange="loadTextBoxSettings()"><option value="">-- No text box selected --</option></select>
+                <span style="font-size:10px; color:#666;">(Or click a box directly on the canvas)</span>
+            </div>
+            
+            <div id="tb-edit-panel" class="sub-panel hidden">
+                <div class="form-group"><label>Text Content</label><textarea id="tb-text" rows="3" oninput="updateTextBoxSettings()"></textarea></div>
+                <div class="grid-3">
+                    <div class="form-group"><label>Font Family</label><select id="tb-font-family" class="font-dropdown" onchange="updateTextBoxSettings()"></select></div>
+                    <div class="form-group"><label>Size</label><input type="number" id="tb-font-size" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="tb-font-color" onchange="updateTextBoxSettings()"></div>
+                </div>
+                
+                <span class="sub-title">Text Outline (Stroke)</span>
+                <div class="grid-2">
+                    <div class="form-group"><label>Width</label><input type="number" id="tb-outline-width" min="0" step="0.5" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="tb-outline-color" onchange="updateTextBoxSettings()"></div>
+                </div>
+                
+                <span class="sub-title">Text Drop Shadow</span>
+                <div class="grid-4">
+                    <div class="form-group"><label>X</label><input type="number" id="tb-shadow-x" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Y</label><input type="number" id="tb-shadow-y" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Blur</label><input type="number" id="tb-shadow-blur" min="0" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="tb-shadow-color" onchange="updateTextBoxSettings()"></div>
+                </div>
+                
+                <span class="sub-title">Box Background & Border</span>
+                <div class="grid-4">
+                    <div class="form-group"><label>Bg Color</label><input type="color" id="tb-bg-color" onchange="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Bg Opacity</label><input type="number" id="tb-bg-opacity" min="0" max="1" step="0.1" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Border W.</label><input type="number" id="tb-box-outline-width" min="0" oninput="updateTextBoxSettings()"></div>
+                    <div class="form-group"><label>Border Col.</label><input type="color" id="tb-box-outline-color" onchange="updateTextBoxSettings()"></div>
+                </div>
+                <button class="btn-delete" style="margin-top:5px;" onclick="deleteActiveTextBox()">Delete This Text Box</button>
+            </div>
+        </div>
+
+        <!-- 4. NODE / ENDPOINT SETTINGS -->
+        <div class="section">
+            <h2>4. Endpoint / Node Settings</h2>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Select Node to Edit</label>
+                    <select id="node-select" onchange="loadNodeSettings()"><option value="">-- Select --</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Node Box Color</label>
+                    <input type="color" id="node-color" value="#cccccc" onchange="updateNodeSettings()" disabled>
+                </div>
+            </div>
+            <div class="form-group">
+                <label style="display:inline-flex; align-items:center; cursor:pointer; color:#007bff;">
+                    <input type="checkbox" id="node-font-override" onchange="toggleNodeFontPanel()" disabled style="margin-right:5px;"> Override Global Font for this Node
+                </label>
+            </div>
+            
+            <div id="node-font-panel" class="sub-panel hidden">
+                <div class="grid-3">
+                    <div class="form-group"><label>Font</label><select id="node-font-family" class="font-dropdown" onchange="updateNodeSettings()"></select></div>
+                    <div class="form-group"><label>Size</label><input type="number" id="node-font-size" value="14" oninput="updateNodeSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="node-font-color" value="#222222" onchange="updateNodeSettings()"></div>
+                </div>
+                
+                <span class="sub-title">Outline (Stroke)</span>
+                <div class="grid-2">
+                    <div class="form-group"><label>Width</label><input type="number" id="node-outline-width" value="0" min="0" step="0.5" oninput="updateNodeSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="node-outline-color" value="#ffffff" onchange="updateNodeSettings()"></div>
+                </div>
+                
+                <span class="sub-title">Drop Shadow</span>
+                <div class="grid-4">
+                    <div class="form-group"><label>X</label><input type="number" id="node-shadow-x" value="0" oninput="updateNodeSettings()"></div>
+                    <div class="form-group"><label>Y</label><input type="number" id="node-shadow-y" value="0" oninput="updateNodeSettings()"></div>
+                    <div class="form-group"><label>Blur</label><input type="number" id="node-shadow-blur" value="0" min="0" oninput="updateNodeSettings()"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="node-shadow-color" value="#000000" onchange="updateNodeSettings()"></div>
+                </div>
+            </div>
+            <button class="btn-clear btn-small" onclick="resetNodePosition()" id="btn-reset-node" style="width:100%; margin-top:8px;" disabled>Reset Node Drag Position</button>
+        </div>
+
+        <!-- 5. GLOBAL SETTINGS -->
+        <div class="section">
+            <h2>5. Global Canvas & Typography</h2>
+            <div class="form-group">
+                <label>Upload Custom Font (.ttf, .woff) <span id="font-upload-status" class="status-text"></span></label>
+                <input type="file" id="custom-font-upload" accept=".ttf,.otf,.woff,.woff2" onchange="handleFontUpload(event)">
+            </div>
+            
+            <div class="grid-3">
+                <div class="form-group"><label>Global Font</label><select id="global-font-family" class="font-dropdown" onchange="updateGlobalSettings()"></select></div>
+                <div class="form-group"><label>Size</label><input type="number" id="global-font-size" value="14" oninput="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Color</label><input type="color" id="global-font-color" value="#222222" onchange="updateGlobalSettings()"></div>
+            </div>
+
+            <span class="sub-title">Global Text Outline (Stroke)</span>
+            <div class="grid-2">
+                <div class="form-group"><label>Width</label><input type="number" id="global-outline-width" value="0" min="0" step="0.5" oninput="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Color</label><input type="color" id="global-outline-color" value="#ffffff" onchange="updateGlobalSettings()"></div>
+            </div>
+            
+            <span class="sub-title">Global Text Drop Shadow</span>
+            <div class="grid-4">
+                <div class="form-group"><label>X Offset</label><input type="number" id="global-shadow-x" value="0" oninput="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Y Offset</label><input type="number" id="global-shadow-y" value="0" oninput="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Blur</label><input type="number" id="global-shadow-blur" value="0" min="0" oninput="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Color</label><input type="color" id="global-shadow-color" value="#000000" onchange="updateGlobalSettings()"></div>
+            </div>
+
+            <div class="form-group" style="margin-top:15px;">
+                <label>Flow Opacity <span id="opacity-val" class="range-value">0.6</span></label>
+                <input type="range" id="flow-opacity" min="0.1" max="1" step="0.05" value="0.6" oninput="updateGlobalSettings()">
+            </div>
+            <div class="grid-2">
+                <div class="form-group"><label>Canvas BG Color</label><input type="color" id="bg-color" value="#ffffff" onchange="updateGlobalSettings()"></div>
+                <div class="form-group"><label>Canvas BG Image</label><input type="file" id="bg-image" accept="image/*" onchange="handleBgImageUpload(event)"></div>
+            </div>
+        </div>
+
+        <!-- 6. SAVE/LOAD / EXPORT -->
+        <div class="section" style="margin-top: auto; border-bottom: none;">
+            <h2>6. Data Management & Export</h2>
+            <label style="font-size:11px; font-weight:bold; color:#666;">Raw Flow Data (CSV)</label>
+            <div class="btn-row" style="margin-bottom: 10px;">
+                <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
+                <button class="btn-secondary" onclick="document.getElementById('csv-input').click()">Import CSV</button>
+                <input type="file" id="csv-input" class="hidden" accept=".csv" onchange="importCSV(event)">
+            </div>
+            <label style="font-size:11px; font-weight:bold; color:#666;">Entire Chart Project (JSON)</label>
+            <div class="btn-row" style="margin-bottom: 10px;">
+                <button class="btn-secondary" onclick="saveConfiguration()">Save JSON</button>
+                <button class="btn-secondary" onclick="document.getElementById('json-input').click()">Load JSON</button>
+                <input type="file" id="json-input" class="hidden" accept=".json" onchange="loadConfiguration(event)">
+            </div>
+            <label style="font-size:11px; font-weight:bold; color:#666;">Final Export</label>
+            <div class="btn-row">
+                <button class="btn-primary" onclick="exportPNG()">Download Chart as PNG</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div id="chart">
+            <div id="chart-container"></div>
+            <div id="text-box-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE DATA STATE ---
+        let flows = [
+            { source: 'Biomass', target: 'Food', amount: 12, color: '#4CAF50', bgImage: null },
+            { source: 'Fossil Fuels', target: 'Energy', amount: 36.8, color: '#795548', bgImage: null },
+            { source: 'Minerals', target: 'Construction', amount: 30.5, color: '#FF9800', bgImage: null }
+        ];
+        
+        let nodePositions = {}; 
+        let nodeColors = {};    
+        let nodeFonts = {};     
+        let customFonts = [];   
+        
+        // --- TEXT BOX STATE ---
+        let textBoxes = {}; 
+        let activeTextBoxId = null;
+
+        // --- GLOBAL SETTINGS STATE ---
+        let editIndex = null;
+        let pendingFlowImage = null; 
+        
+        let gSettings = {
+            fontFamily: "Arial, sans-serif", fontSize: 14, fontColor: "#222222",
+            outW: 0, outC: "#ffffff", shX: 0, shY: 0, shB: 0, shC: "#000000",
+            opacity: 0.6, bgColor: "#ffffff", bgImage: null
+        };
+        
+        // --- DRAG STATE ---
+        let draggingNodeName = null; 
+        let draggingTextBoxId = null;
+        let dragOffsetX = 0; let dragOffsetY = 0;
+
+        // --- UTILS ---
+        function hexToRgbA(hex, alpha) {
+            let c; if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+                c = hex.substring(1).split('');
+                if(c.length === 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+                c = '0x' + c.join('');
+                return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+            } return `rgba(255,255,255,${alpha})`; // fallback
+        }
+        function escapeHTML(str) { return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+        // --- FONT UPLOAD & INJECTION ---
+        const standardFonts = [
+            {val: "Arial, sans-serif", name: "Arial"}, {val: "'Segoe UI', sans-serif", name: "Segoe UI"},
+            {val: "'Times New Roman', serif", name: "Times New Roman"}, {val: "Verdana, sans-serif", name: "Verdana"}
+        ];
+
+        function handleFontUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const fontName = 'CustomFont_' + Date.now();
+                customFonts.push({ name: fontName, data: evt.target.result });
+                document.getElementById('font-upload-status').innerText = "(Added)";
+                setTimeout(() => document.getElementById('font-upload-status').innerText = "", 2000);
+                injectAndPopulateFonts();
+            };
+            reader.readAsDataURL(file);
+            e.target.value = ''; 
+        }
+
+        function injectAndPopulateFonts() {
+            let css = '';
+            customFonts.forEach(f => { css += `@font-face { font-family: '${f.name}'; src: url('${f.data}'); }\n`; });
+            document.getElementById('custom-fonts-style').innerHTML = css;
+
+            const dropdowns = document.querySelectorAll('.font-dropdown');
+            dropdowns.forEach(dd => {
+                const currentVal = dd.value;
+                let html = standardFonts.map(sf => `<option value="${sf.val}">${sf.name}</option>`).join('');
+                if(customFonts.length > 0) {
+                    html += `<optgroup label="Custom Fonts">`;
+                    html += customFonts.map(cf => `<option value="'${cf.name}'">${cf.name}</option>`).join('');
+                    html += `</optgroup>`;
+                }
+                dd.innerHTML = html;
+                if (currentVal) dd.value = currentVal;
+            });
+        }
+
+        // --- FLOW LOGIC ---
+        function handleFlowImageUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = evt => {
+                    pendingFlowImage = evt.target.result;
+                    document.getElementById('flow-img-status').innerText = "(Loaded)";
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        function clearFlowImage() { pendingFlowImage = null; document.getElementById('flow-img').value = ''; document.getElementById('flow-img-status').innerText = ""; }
+
+        function submitFlow() {
+            const source = document.getElementById('source').value.trim();
+            const target = document.getElementById('target').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            const color = document.getElementById('color').value;
+
+            if (!source || !target || isNaN(amount) || amount <= 0) { alert("Invalid input."); return; }
+            const newFlow = { source, target, amount, color, bgImage: pendingFlowImage };
+
+            if (editIndex !== null) { flows[editIndex] = newFlow; cancelEdit(); } 
+            else { flows.push(newFlow); document.getElementById('target').value = ''; document.getElementById('amount').value = ''; clearFlowImage(); }
+            updateApp();
+        }
+
+        function editFlow(index) {
+            editIndex = index; const flow = flows[index];
+            document.getElementById('source').value = flow.source;
+            document.getElementById('target').value = flow.target;
+            document.getElementById('amount').value = flow.amount;
+            document.getElementById('color').value = flow.color;
+            
+            pendingFlowImage = flow.bgImage || null;
+            document.getElementById('flow-img-status').innerText = pendingFlowImage ? "(Kept)" : "";
+            
+            document.getElementById('form-title').innerText = "1. Edit Flow";
+            document.getElementById('btn-submit').innerText = "Update Flow";
+            document.getElementById('btn-cancel').classList.remove('hidden');
+            renderList(); 
+        }
+
+        function cancelEdit() {
+            editIndex = null;
+            document.getElementById('source').value = ''; document.getElementById('target').value = ''; document.getElementById('amount').value = '';
+            clearFlowImage();
+            document.getElementById('form-title').innerText = "1. Add Flow";
+            document.getElementById('btn-submit').innerText = "Add Flow";
+            document.getElementById('btn-cancel').classList.add('hidden');
+            renderList();
+        }
+        function removeFlow(index) { flows.splice(index, 1); if (editIndex === index) cancelEdit(); updateApp(); }
+
+        // --- TEXT BOX LOGIC ---
+        function addTextBox() {
+            const id = 'tb_' + Date.now();
+            textBoxes[id] = {
+                id: id, text: 'New Chart Title',
+                x: 50, y: 50,
+                fontFamily: gSettings.fontFamily, fontSize: 32, fontColor: '#222222',
+                outW: 0, outC: '#ffffff', shX: 0, shY: 0, shB: 0, shC: '#000000',
+                bgColor: '#ffffff', bgOpacity: 0, boxOutW: 0, boxOutC: '#cccccc' // Added Opacity, defaults to 0
+            };
+            activeTextBoxId = id;
+            updateTextBoxDropdown();
+            renderTextBoxes();
+        }
+
+        function updateTextBoxDropdown() {
+            const select = document.getElementById('tb-select');
+            let html = '<option value="">-- No text box selected --</option>';
+            Object.values(textBoxes).forEach(tb => {
+                const preview = tb.text.substring(0, 15) + (tb.text.length > 15 ? '...' : '');
+                html += `<option value="${tb.id}">"${escapeHTML(preview)}"</option>`;
+            });
+            select.innerHTML = html;
+            select.value = activeTextBoxId || "";
+            loadTextBoxSettings();
+        }
+
+        function loadTextBoxSettings() {
+            const id = document.getElementById('tb-select').value;
+            const panel = document.getElementById('tb-edit-panel');
+            if (!id || !textBoxes[id]) {
+                activeTextBoxId = null;
+                panel.classList.add('hidden');
+                renderTextBoxes(); 
+                return;
+            }
+            
+            activeTextBoxId = id;
+            const tb = textBoxes[id];
+            document.getElementById('tb-text').value = tb.text;
+            document.getElementById('tb-font-family').value = tb.fontFamily;
+            document.getElementById('tb-font-size').value = tb.fontSize;
+            document.getElementById('tb-font-color').value = tb.fontColor;
+            
+            document.getElementById('tb-outline-width').value = tb.outW;
+            document.getElementById('tb-outline-color').value = tb.outC;
+            
+            document.getElementById('tb-shadow-x').value = tb.shX;
+            document.getElementById('tb-shadow-y').value = tb.shY;
+            document.getElementById('tb-shadow-blur').value = tb.shB;
+            document.getElementById('tb-shadow-color').value = tb.shC;
+            
+            document.getElementById('tb-bg-color').value = tb.bgColor || "#ffffff";
+            document.getElementById('tb-bg-opacity').value = tb.bgOpacity !== undefined ? tb.bgOpacity : 0;
+            document.getElementById('tb-box-outline-width').value = tb.boxOutW || 0;
+            document.getElementById('tb-box-outline-color').value = tb.boxOutC || "#000000";
+            
+            panel.classList.remove('hidden');
+            renderTextBoxes(); 
+        }
+
+        function updateTextBoxSettings() {
+            if (!activeTextBoxId || !textBoxes[activeTextBoxId]) return;
+            const tb = textBoxes[activeTextBoxId];
+            
+            tb.text = document.getElementById('tb-text').value;
+            tb.fontFamily = document.getElementById('tb-font-family').value;
+            tb.fontSize = parseInt(document.getElementById('tb-font-size').value);
+            tb.fontColor = document.getElementById('tb-font-color').value;
+            tb.outW = parseFloat(document.getElementById('tb-outline-width').value);
+            tb.outC = document.getElementById('tb-outline-color').value;
+            tb.shX = parseFloat(document.getElementById('tb-shadow-x').value);
+            tb.shY = parseFloat(document.getElementById('tb-shadow-y').value);
+            tb.shB = parseFloat(document.getElementById('tb-shadow-blur').value);
+            tb.shC = document.getElementById('tb-shadow-color').value;
+            tb.bgColor = document.getElementById('tb-bg-color').value;
+            tb.bgOpacity = parseFloat(document.getElementById('tb-bg-opacity').value);
+            tb.boxOutW = parseFloat(document.getElementById('tb-box-outline-width').value);
+            tb.boxOutC = document.getElementById('tb-box-outline-color').value;
+            
+            updateTextBoxDropdown(); 
+            renderTextBoxes();
+        }
+
+        function deleteActiveTextBox() {
+            if (activeTextBoxId && textBoxes[activeTextBoxId]) {
+                delete textBoxes[activeTextBoxId];
+                activeTextBoxId = null;
+                updateTextBoxDropdown();
+                renderTextBoxes();
+            }
+        }
+
+        function renderTextBoxes() {
+            const container = document.getElementById('text-box-container');
+            container.innerHTML = '';
+            
+            Object.values(textBoxes).forEach(tb => {
+                const el = document.createElement('div');
+                el.className = 'chart-text-box draggable';
+                if (activeTextBoxId === tb.id) el.classList.add('active-tb');
+                
+                el.id = tb.id;
+                el.style.left = tb.x + 'px';
+                el.style.top = tb.y + 'px';
+                el.style.fontFamily = tb.fontFamily;
+                el.style.fontSize = tb.fontSize + 'px';
+                el.style.color = tb.fontColor;
+                el.style.webkitTextStroke = `${tb.outW}px ${tb.outC}`;
+                el.style.textShadow = `${tb.shX}px ${tb.shY}px ${tb.shB}px ${tb.shC}`;
+                
+                // Box background with opacity
+                el.style.backgroundColor = hexToRgbA(tb.bgColor, tb.bgOpacity !== undefined ? tb.bgOpacity : 0);
+                if (tb.boxOutW > 0) el.style.border = `${tb.boxOutW}px solid ${tb.boxOutC}`;
+                else el.style.border = 'none'; // Ensure defaults to 0 border
+                
+                el.innerText = tb.text;
+                
+                el.onmousedown = function(e) {
+                    if (activeTextBoxId !== tb.id) {
+                        activeTextBoxId = tb.id;
+                        document.getElementById('tb-select').value = tb.id;
+                        loadTextBoxSettings();
+                    }
+                    startDrag(e);
+                };
+                container.appendChild(el);
+            });
+        }
+
+        // --- DISTINCT NODE SETTINGS ---
+        let lastNodeNames = "";
+        function updateNodeDropdown() {
+            const nodeNames = Array.from(new Set(flows.flatMap(f => [f.source, f.target]))).sort();
+            const currentStr = nodeNames.join(',');
+            if (lastNodeNames === currentStr) return; 
+            lastNodeNames = currentStr;
+
+            const select = document.getElementById('node-select');
+            const prev = select.value;
+            select.innerHTML = '<option value="">-- Select --</option>' + nodeNames.map(n => `<option value="${escapeHTML(n)}">${n}</option>`).join('');
+            if (nodeNames.includes(prev)) select.value = prev;
+            loadNodeSettings();
+        }
+
+        function loadNodeSettings() {
+            const name = document.getElementById('node-select').value;
+            const cbOverride = document.getElementById('node-font-override');
+            
+            if (!name) {
+                document.getElementById('node-color').disabled = true;
+                document.getElementById('btn-reset-node').disabled = true;
+                cbOverride.disabled = true; cbOverride.checked = false;
+                toggleNodeFontPanel(); return;
+            }
+            
+            document.getElementById('node-color').disabled = false;
+            document.getElementById('btn-reset-node').disabled = false;
+            cbOverride.disabled = false;
+            document.getElementById('node-color').value = nodeColors[name] || "#cccccc";
+            
+            if (nodeFonts[name]) {
+                cbOverride.checked = true;
+                const f = nodeFonts[name];
+                document.getElementById('node-font-family').value = f.family || gSettings.fontFamily;
+                document.getElementById('node-font-size').value = f.size || gSettings.fontSize;
+                document.getElementById('node-font-color').value = f.color || gSettings.fontColor;
+                document.getElementById('node-outline-width').value = f.outW !== undefined ? f.outW : gSettings.outW;
+                document.getElementById('node-outline-color').value = f.outC || gSettings.outC;
+                document.getElementById('node-shadow-x').value = f.shX !== undefined ? f.shX : gSettings.shX;
+                document.getElementById('node-shadow-y').value = f.shY !== undefined ? f.shY : gSettings.shY;
+                document.getElementById('node-shadow-blur').value = f.shB !== undefined ? f.shB : gSettings.shB;
+                document.getElementById('node-shadow-color').value = f.shC || gSettings.shC;
+            } else { cbOverride.checked = false; }
+            toggleNodeFontPanel();
+        }
+
+        function toggleNodeFontPanel() {
+            const checked = document.getElementById('node-font-override').checked;
+            const panel = document.getElementById('node-font-panel');
+            if (checked && document.getElementById('node-select').value) {
+                panel.classList.remove('hidden'); updateNodeSettings(); 
+            } else {
+                panel.classList.add('hidden');
+                const name = document.getElementById('node-select').value;
+                if(name && nodeFonts[name]) { delete nodeFonts[name]; renderChart(); }
+            }
+        }
+
+        function updateNodeSettings() {
+            const name = document.getElementById('node-select').value;
+            if (!name) return;
+            nodeColors[name] = document.getElementById('node-color').value;
+            
+            if (document.getElementById('node-font-override').checked) {
+                nodeFonts[name] = {
+                    family: document.getElementById('node-font-family').value,
+                    size: parseInt(document.getElementById('node-font-size').value),
+                    color: document.getElementById('node-font-color').value,
+                    outW: parseFloat(document.getElementById('node-outline-width').value),
+                    outC: document.getElementById('node-outline-color').value,
+                    shX: parseFloat(document.getElementById('node-shadow-x').value),
+                    shY: parseFloat(document.getElementById('node-shadow-y').value),
+                    shB: parseFloat(document.getElementById('node-shadow-blur').value),
+                    shC: document.getElementById('node-shadow-color').value
+                };
+            }
+            renderChart();
+        }
+
+        function resetNodePosition() {
+            const name = document.getElementById('node-select').value;
+            if (name && nodePositions[name]) { delete nodePositions[name]; renderChart(); }
+        }
+
+        // --- GLOBAL SETTINGS LOGIC ---
+        function handleBgImageUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = evt => { gSettings.bgImage = evt.target.result; updateApp(); };
+                reader.readAsDataURL(file);
+            }
+        }
+        function updateGlobalSettings() {
+            gSettings.fontFamily = document.getElementById('global-font-family').value;
+            gSettings.fontSize = parseInt(document.getElementById('global-font-size').value);
+            gSettings.fontColor = document.getElementById('global-font-color').value;
+            gSettings.outW = parseFloat(document.getElementById('global-outline-width').value);
+            gSettings.outC = document.getElementById('global-outline-color').value;
+            gSettings.shX = parseFloat(document.getElementById('global-shadow-x').value);
+            gSettings.shY = parseFloat(document.getElementById('global-shadow-y').value);
+            gSettings.shB = parseFloat(document.getElementById('global-shadow-blur').value);
+            gSettings.shC = document.getElementById('global-shadow-color').value;
+            gSettings.opacity = parseFloat(document.getElementById('flow-opacity').value);
+            document.getElementById('opacity-val').innerText = gSettings.opacity.toFixed(2);
+            gSettings.bgColor = document.getElementById('bg-color').value;
+            updateApp();
+        }
+
+        // --- RENDER UI LIST ---
+        function renderList() {
+            const container = document.getElementById('flow-container'); container.innerHTML = '';
+            flows.forEach((flow, index) => {
+                const item = document.createElement('div');
+                item.className = 'flow-item ' + (editIndex === index ? 'editing' : '');
+                item.innerHTML = `
+                    <div class="flow-details"><div class="color-box" style="background-color: ${flow.color}"></div>
+                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${flow.bgImage?'🖼️ ':''}<b>${flow.source}</b> &rarr; <b>${flow.target}</b> (${flow.amount})</span></div>
+                    <div class="action-btns"><button class="btn-edit btn-small" onclick="editFlow(${index})">Edit</button><button class="btn-delete btn-small" onclick="removeFlow(${index})">X</button></div>`;
+                container.appendChild(item);
+            });
+        }
+
+        // --- CUSTOM SANKEY RENDER ENGINE ---
+        function renderChart() {
+            updateNodeDropdown();
+            const chartWrapper = document.getElementById('chart'); const container = document.getElementById('chart-container');
+            chartWrapper.style.backgroundColor = gSettings.bgColor;
+            chartWrapper.style.backgroundImage = gSettings.bgImage ? `url(${gSettings.bgImage})` : 'none';
+
+            if (flows.length === 0) { container.innerHTML = ''; return; }
+
+            const width = chartWrapper.clientWidth; const height = chartWrapper.clientHeight;
+            const nodeWidth = 24; const nodePadding = 30; const margins = { top: 40, bottom: 40, left: 40, right: 180 }; 
+
+            let nodes = {}; let parsedLinks = [];
+            flows.forEach(f => {
+                if (!nodes[f.source]) nodes[f.source] = { name: f.source, inVal: 0, outVal: 0, inLinks: [], outLinks: [], layer: 0 };
+                if (!nodes[f.target]) nodes[f.target] = { name: f.target, inVal: 0, outVal: 0, inLinks: [], outLinks: [], layer: 0 };
+                let link = { source: nodes[f.source], target: nodes[f.target], value: f.amount, color: f.color, bgImage: f.bgImage };
+                nodes[f.source].outVal += f.amount; nodes[f.source].outLinks.push(link);
+                nodes[f.target].inVal += f.amount; nodes[f.target].inLinks.push(link);
+                parsedLinks.push(link);
+            });
+
+            const nodeArray = Object.values(nodes);
+            nodeArray.forEach(n => n.value = Math.max(n.inVal, n.outVal));
+
+            let changed = true, iterations = 0;
+            while (changed && iterations < 100) {
+                changed = false;
+                nodeArray.forEach(n => { n.outLinks.forEach(l => { if (l.target.layer <= n.layer) { l.target.layer = n.layer + 1; changed = true; } }); });
+                iterations++;
+            }
+
+            const maxLayer = Math.max(...nodeArray.map(n => n.layer));
+            let layers = Array.from({length: maxLayer + 1}, () => []);
+            nodeArray.forEach(n => layers[n.layer].push(n));
+
+            let maxLayerValue = 0;
+            layers.forEach(layerNodes => { let sum = layerNodes.reduce((acc, n) => acc + n.value, 0); if (sum > maxLayerValue) maxLayerValue = sum; });
+            const maxNodesInLayer = Math.max(...layers.map(l => l.length));
+            const availableHeight = height - margins.top - margins.bottom - (maxNodesInLayer - 1) * nodePadding;
+            const K = availableHeight / (maxLayerValue || 1);
+            const xStep = (width - margins.left - margins.right) / (maxLayer || 1);
+            
+            layers.forEach((layerNodes, lIdx) => {
+                const layerTotalHeight = layerNodes.reduce((acc, n) => acc + (n.value * K), 0) + (layerNodes.length - 1) * nodePadding;
+                let currentY = margins.top + (height - margins.top - margins.bottom - layerTotalHeight) / 2;
+                layerNodes.forEach(n => {
+                    n.h = Math.max(n.value * K, 1);
+                    if (nodePositions[n.name]) { n.x = nodePositions[n.name].x; n.y = nodePositions[n.name].y; } 
+                    else { n.x = margins.left + lIdx * xStep; n.y = currentY; }
+                    currentY += n.h + nodePadding;
+                });
+            });
+
+            nodeArray.forEach(n => {
+                n.outLinks.sort((a, b) => a.target.y - b.target.y); let currentOutY = n.y;
+                n.outLinks.forEach(l => { l.sy = currentOutY; currentOutY += l.value * K; });
+                n.inLinks.sort((a, b) => a.source.y - b.source.y); let currentInY = n.y;
+                n.inLinks.forEach(l => { l.ty = currentInY; currentInY += l.value * K; });
+            });
+
+            let svg = `<svg width="100%" height="100%">`;
+            let defs = '<defs>';
+            parsedLinks.forEach((l, i) => {
+                if (l.bgImage) {
+                    defs += `<pattern id="pat_flow_${i}" patternUnits="userSpaceOnUse" width="${width}" height="${height}">
+                                <image href="${l.bgImage}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity="${gSettings.opacity}"/>
+                             </pattern>`;
+                }
+            });
+            defs += '</defs>'; svg += defs;
+            
+            parsedLinks.forEach((l, i) => {
+                const thickness = Math.max(l.value * K, 0.5);
+                const startX = l.source.x + nodeWidth; const startY = l.sy + (thickness / 2);
+                const endX = l.target.x; const endY = l.ty + (thickness / 2);
+                const cpX1 = startX + (endX - startX) * 0.45; const cpX2 = endX - (endX - startX) * 0.45;
+                const pathD = `M ${startX} ${startY} C ${cpX1} ${startY}, ${cpX2} ${endY}, ${endX} ${endY}`;
+                const strokeFill = l.bgImage ? `url(#pat_flow_${i})` : hexToRgbA(l.color, gSettings.opacity);
+                svg += `<path d="${pathD}" stroke="${strokeFill}" stroke-width="${thickness}" fill="none" style="transition: stroke 0.3s;"/>`;
+            });
+
+            nodeArray.forEach(n => {
+                const safeName = escapeHTML(n.name);
+                const nodeColor = nodeColors[n.name] || '#cccccc';
+                
+                svg += `<rect class="draggable" data-name="${safeName}" data-x="${n.x}" data-y="${n.y}" 
+                              onmousedown="startDrag(event)" x="${n.x}" y="${n.y}" width="${nodeWidth}" height="${n.h}" 
+                              fill="${nodeColor}" stroke="#555" stroke-width="1" rx="2" ry="2" />`;
+                
+                const nF = nodeFonts[n.name] || {};
+                const fam = nF.family || gSettings.fontFamily;
+                const sz = nF.size || gSettings.fontSize;
+                const col = nF.color || gSettings.fontColor;
+                const outW = nF.outW !== undefined ? nF.outW : gSettings.outW;
+                const outC = nF.outC || gSettings.outC;
+                const shX = nF.shX !== undefined ? nF.shX : gSettings.shX;
+                const shY = nF.shY !== undefined ? nF.shY : gSettings.shY;
+                const shB = nF.shB !== undefined ? nF.shB : gSettings.shB;
+                const shC = nF.shC || gSettings.shC;
+                
+                const textShadow = (shX === 0 && shY === 0 && shB === 0) ? 'none' : `${shX}px ${shY}px ${shB}px ${shC}`;
+                const textY = n.y + (n.h / 2) + (sz / 3);
+                const textX = (n.layer === maxLayer) ? (n.x - 8) : (n.x + nodeWidth + 8);
+                const anchor = (n.layer === maxLayer) ? "end" : "start";
+
+                svg += `<text class="draggable" data-name="${safeName}" data-x="${n.x}" data-y="${n.y}" onmousedown="startDrag(event)" 
+                              x="${textX}" y="${textY}" font-family="${fam}" font-size="${sz}" fill="${col}" 
+                              text-anchor="${anchor}" font-weight="600" 
+                              stroke="${outC}" stroke-width="${outW}" paint-order="stroke fill"
+                              style="text-shadow: ${textShadow}; pointer-events: none;">${n.name}</text>`;
+            });
+
+            svg += `</svg>`; container.innerHTML = svg;
+            renderTextBoxes();
+        }
+
+        function updateApp() { renderList(); renderChart(); }
+
+        // --- DRAG INTERACTION ---
+        function startDrag(e) {
+            if (e.currentTarget.classList.contains('chart-text-box')) {
+                draggingTextBoxId = e.currentTarget.id;
+                const initialX = parseFloat(e.currentTarget.style.left);
+                const initialY = parseFloat(e.currentTarget.style.top);
+                const rect = document.getElementById('chart').getBoundingClientRect();
+                dragOffsetX = (e.clientX - rect.left) - initialX;
+                dragOffsetY = (e.clientY - rect.top) - initialY;
+            } else {
+                draggingNodeName = e.currentTarget.getAttribute('data-name');
+                const initialX = parseFloat(e.currentTarget.getAttribute('data-x'));
+                const initialY = parseFloat(e.currentTarget.getAttribute('data-y'));
+                const rect = document.getElementById('chart').getBoundingClientRect();
+                dragOffsetX = (e.clientX - rect.left) - initialX; 
+                dragOffsetY = (e.clientY - rect.top) - initialY;
+            }
+        }
+
+        document.addEventListener('mousemove', (e) => {
+            const rect = document.getElementById('chart').getBoundingClientRect();
+            if (draggingNodeName) {
+                if (!nodePositions[draggingNodeName]) nodePositions[draggingNodeName] = {};
+                nodePositions[draggingNodeName].x = (e.clientX - rect.left) - dragOffsetX;
+                nodePositions[draggingNodeName].y = (e.clientY - rect.top) - dragOffsetY;
+                renderChart();
+            } else if (draggingTextBoxId) {
+                if (textBoxes[draggingTextBoxId]) {
+                    textBoxes[draggingTextBoxId].x = (e.clientX - rect.left) - dragOffsetX;
+                    textBoxes[draggingTextBoxId].y = (e.clientY - rect.top) - dragOffsetY;
+                    const el = document.getElementById(draggingTextBoxId);
+                    if(el) {
+                        el.style.left = textBoxes[draggingTextBoxId].x + 'px';
+                        el.style.top = textBoxes[draggingTextBoxId].y + 'px';
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => { draggingNodeName = null; draggingTextBoxId = null; });
+        window.addEventListener('resize', renderChart);
+
+
+        // --- CSV EXPORT / IMPORT ---
+        function exportCSV() {
+            let csvContent = "source,target,amount,color\n";
+            flows.forEach(f => {
+                const src = f.source.includes(',') ? `"${f.source}"` : f.source;
+                const tgt = f.target.includes(',') ? `"${f.target}"` : f.target;
+                csvContent += `${src},${tgt},${f.amount},${f.color}\n`;
+            });
+            const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "flow_data.csv");
+            document.body.appendChild(dl); dl.click(); dl.remove();
+        }
+
+        function importCSV(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.trim().split('\n');
+                if(lines.length < 2) { alert("Invalid CSV."); return; }
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                const newFlows = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const row = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                    const obj = {};
+                    headers.forEach((h, idx) => { obj[h] = row[idx]; });
+                    if(obj.source && obj.target && obj.amount) {
+                        newFlows.push({
+                            source: obj.source, target: obj.target, amount: parseFloat(obj.amount) || 1,
+                            color: obj.color && obj.color.startsWith('#') ? obj.color : '#888888', bgImage: null 
+                        });
+                    }
+                }
+                if (newFlows.length > 0) { flows = newFlows; cancelEdit(); updateApp(); } 
+                else { alert("No valid rows found in CSV."); }
+                document.getElementById('csv-input').value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        // --- JSON SAVE / LOAD ---
+        function saveConfiguration() {
+            const config = { flows, textBoxes, nodePositions, nodeColors, nodeFonts, customFonts, gSettings };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "sankey_project.json");
+            document.body.appendChild(dl); dl.click(); dl.remove();
+        }
+
+        function loadConfiguration(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const c = JSON.parse(e.target.result);
+                    if (c.flows) flows = c.flows;
+                    if (c.textBoxes) textBoxes = c.textBoxes;
+                    if (c.nodePositions) nodePositions = c.nodePositions;
+                    if (c.nodeColors) nodeColors = c.nodeColors;
+                    if (c.nodeFonts) nodeFonts = c.nodeFonts;
+                    if (c.customFonts) { customFonts = c.customFonts; injectAndPopulateFonts(); }
+                    
+                    if (c.gSettings) {
+                        gSettings = c.gSettings;
+                        document.getElementById('global-font-family').value = gSettings.fontFamily;
+                        document.getElementById('global-font-size').value = gSettings.fontSize;
+                        document.getElementById('global-font-color').value = gSettings.fontColor;
+                        document.getElementById('global-outline-width').value = gSettings.outW || 0;
+                        document.getElementById('global-outline-color').value = gSettings.outC || "#ffffff";
+                        document.getElementById('global-shadow-x').value = gSettings.shX || 0;
+                        document.getElementById('global-shadow-y').value = gSettings.shY || 0;
+                        document.getElementById('global-shadow-blur').value = gSettings.shB || 0;
+                        document.getElementById('global-shadow-color').value = gSettings.shC || "#000000";
+                        document.getElementById('flow-opacity').value = gSettings.opacity;
+                        document.getElementById('opacity-val').innerText = gSettings.opacity.toFixed(2);
+                        document.getElementById('bg-color').value = gSettings.bgColor;
+                    }
+                    updateTextBoxDropdown(); cancelEdit(); updateApp(); 
+                } catch(err) { alert("Invalid JSON Project File."); }
+                document.getElementById('json-input').value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        // --- PNG EXPORT ENGINE ---
+        function exportPNG() {
+            // Deselect text box so active borders disappear in final image
+            const previousActiveId = activeTextBoxId;
+            activeTextBoxId = null;
+            renderTextBoxes(); 
+
+            const chartDiv = document.getElementById('chart');
+            const width = chartDiv.clientWidth;
+            const height = chartDiv.clientHeight;
+            
+            const originalSvg = chartDiv.querySelector('svg');
+            if (!originalSvg) return;
+            const svgClone = originalSvg.cloneNode(true);
+            svgClone.setAttribute("width", width);
+            svgClone.setAttribute("height", height);
+            
+            // Inject Fonts and basic classes to make Text Boxes render perfectly
+            const styleNode = document.createElementNS("http://www.w3.org/2000/svg", "style");
+            styleNode.textContent = document.getElementById('custom-fonts-style').innerHTML + 
+                `\n .chart-text-box { position: absolute; padding: 8px 12px; white-space: pre-wrap; border-radius: 4px; box-sizing: border-box; }`;
+            svgClone.insertBefore(styleNode, svgClone.firstChild);
+
+            // Construct <foreignObject> wrapper to overlay HTML texts inside the SVG string
+            const fo = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+            fo.setAttribute("width", "100%"); fo.setAttribute("height", "100%");
+            fo.setAttribute("x", "0"); fo.setAttribute("y", "0");
+            
+            const tbContainer = document.getElementById('text-box-container').cloneNode(true);
+            tbContainer.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+            
+            fo.appendChild(tbContainer);
+            svgClone.appendChild(fo);
+            
+            const svgString = new XMLSerializer().serializeToString(svgClone);
+            const img = new Image();
+            
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                if (gSettings.bgColor) { ctx.fillStyle = gSettings.bgColor; ctx.fillRect(0, 0, width, height); }
+                
+                if (gSettings.bgImage) {
+                    const bgImg = new Image();
+                    bgImg.onload = function() {
+                        const imgRatio = bgImg.width / bgImg.height;
+                        const canvasRatio = width / height;
+                        let drawW = width, drawH = height, drawX = 0, drawY = 0;
+                        if (imgRatio > canvasRatio) { drawW = height * imgRatio; drawX = (width - drawW) / 2; } 
+                        else { drawH = width / imgRatio; drawY = (height - drawH) / 2; }
+                        ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+                        ctx.drawImage(img, 0, 0);
+                        downloadRasterData(canvas);
+                    };
+                    bgImg.src = gSettings.bgImage;
+                } else {
+                    ctx.drawImage(img, 0, 0);
+                    downloadRasterData(canvas);
+                }
+            };
+            img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
+
+            // Restore previously selected text box after export is queued
+            activeTextBoxId = previousActiveId;
+            renderTextBoxes();
+        }
+
+        function downloadRasterData(canvas) {
+            const link = document.createElement('a');
+            link.download = 'sankey_chart.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Init
+        injectAndPopulateFonts();
+        window.onload = updateApp;
+    </script>
+</body>
+</html>
